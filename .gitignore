@@ -1,2 +1,5 @@
 node_modules/
 .env
+src\test.js
+src\test.4js
+src\test6.js

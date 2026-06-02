@@ -17,13 +17,21 @@ router.post('/', async (req, res) => {
 
     // Step 2: search Qdrant for relevant docs
     const results = await searchVectors(queryVec, 4);
+    const filteredResults = results.filter(r => r.score > 0.2);
+
+   if (filteredResults.length === 0) {
+   return res.json({ 
+    answer: 'I could not find relevant information to answer your question.',
+    sources: [] 
+  });
+}
 
     if (results.length === 0) {
       return res.json({ answer: 'No relevant documents found.', sources: [] });
     }
 
     // Step 3: build context from retrieved docs
-    const context = results.map(r => r.payload.text).join('\n\n');
+    const context = filteredResults.map(r => r.payload.text).join('\n\n');
 
     // Step 4: generate answer with Groq
     const answer = await chat([
@@ -33,7 +41,7 @@ router.post('/', async (req, res) => {
 
     res.json({
       answer,
-      sources: results.map(r => ({
+      sources: filteredResults.map(r => ({
         text: r.payload.text,
         score: r.score.toFixed(4)
       }))
