@@ -1,5 +1,6 @@
 # Agentic RAG System
 
+
 An intelligent document question-answering system that goes beyond standard RAG. Instead of blindly retrieving and generating, it evaluates retrieval quality at runtime, falls back to web search when documents are insufficient, and reflects on its own answers before returning them.
 
 Built entirely on a free, open-source stack — no OpenAI, no paid embeddings.
