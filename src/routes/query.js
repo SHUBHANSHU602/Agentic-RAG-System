@@ -1,53 +1,73 @@
 const express = require('express');
 const router = express.Router();
-const { retrieve } = require('../retrieval');
-const { chat } = require('../llm');
+const { runAgenticRag } = require('../graph/graph');
 
 router.post('/', async (req, res) => {
   try {
     const { question } = req.body;
+
     if (!question || typeof question !== 'string') {
       return res.status(400).json({ error: 'question must be a non-empty string' });
     }
 
     const trimmed = question.trim();
-    if (trimmed.length < 3) return res.status(400).json({ error: 'question must be at least 3 characters' });
-    if (trimmed.length > 1000) return res.status(400).json({ error: 'question too long — max 1000 characters' });
-
-    const results = await retrieve(trimmed);
-
-    if (results.length === 0) {
-      return res.status(200).json({
-        answer: 'I could not find relevant information to answer your question.',
-        sources: [],
-        retrieved: 0
-      });
+    if (trimmed.length < 3) {
+      return res.status(400).json({ error: 'question must be at least 3 characters' });
+    }
+    if (trimmed.length > 1000) {
+      return res.status(400).json({ error: 'question too long — max 1000 characters' });
     }
 
-    const context = results
-      .map(r => r.payload.parentText || r.payload.text)
-      .join('\n\n');
+    const state = await runAgenticRag(trimmed);
 
-    const answer = await chat([
-      { role: 'system', content: 'You are a helpful assistant. Answer the question using only the provided context. If the answer is not in the context, say you do not know.' },
-      { role: 'user', content: `Context:\n${context}\n\nQuestion: ${trimmed}` }
-    ]);
+    const documentSources = (state.documents || []).map(result => ({
+      type: 'document',
+      childText: result?.payload?.text || null,
+      parentText: result?.payload?.parentText?.slice(0, 250) || null,
+      rerankScore: Number((result.rerankScore ?? result.rrfScore ?? result.score ?? 0).toFixed(4)),
+      parentIndex: result?.payload?.parentIndex ?? null,
+      source: result?.payload?.source ?? null
+    }));
+
+    const webSources = (state.webResults || []).map(result => ({
+      type: 'web',
+      title: result.title,
+      url: result.url,
+      score: result.score,
+      preview: result.content?.slice(0, 250) || null
+    }));
+
+    const usedSources = state.retrievalDecision === 'not_relevant'
+      ? webSources
+      : state.queryType === 'web_current'
+        ? webSources
+        : [...documentSources, ...webSources];
 
     return res.status(200).json({
-      answer,
-      retrieved: results.length,
-      sources: results.map(r => ({
-        childText: r.payload.text,
-        parentText: r.payload.parentText?.slice(0, 200) ?? null,
-        rerankScore: parseFloat((r.rerankScore ?? r.rrfScore ?? 0).toFixed(4)),
-        parentIndex: r.payload.parentIndex ?? null,
-        source: r.payload.source ?? null
-      }))
+      answer: state.answer,
+      route: {
+        queryType: state.queryType,
+        reason: state.routeReason,
+        retrievalDecision: state.retrievalDecision,
+        gradeReason: state.gradeReason,
+        webSearched: state.webSearched,
+        webSearchError: state.webSearchError,
+        generations: state.iterations,
+        reflection: state.reflection,
+        reflectionFeedback: state.reflectionFeedback
+      },
+      retrieved: documentSources.length,
+      sources: usedSources
     });
-
   } catch (err) {
-    console.error('[query error]', err.message);
-    return res.status(500).json({ error: 'Internal server error. Check server logs.' });
+    console.error('[query error]', err);
+
+    const message = String(err?.message || '');
+    if (message.includes('429')) {
+      return res.status(429).json({ error: 'An upstream AI service is rate-limited. Please retry shortly.' });
+    }
+
+    return res.status(500).json({ error: 'Agentic query pipeline failed. Check server logs.' });
   }
 });
 
