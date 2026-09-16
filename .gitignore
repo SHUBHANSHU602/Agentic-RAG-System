@@ -1,5 +1,6 @@
 node_modules/
 .env
+.uploads/
 src\test.js
 src\test.4js
 src\test6.js
