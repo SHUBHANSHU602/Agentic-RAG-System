@@ -24,9 +24,10 @@ const workflow = new StateGraph(GraphState)
 
 const agenticRagGraph = workflow.compile();
 
-async function runAgenticRag(question) {
+async function runAgenticRag(question, options = {}) {
   return agenticRagGraph.invoke({
     question,
+    workspaceId: options.workspaceId || null,
     queryType: 'factual',
     routeReason: '',
     documents: [],
