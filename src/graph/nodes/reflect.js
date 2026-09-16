@@ -50,7 +50,8 @@ Choose retry when either faithfulness or completeness is materially weak.`
 
 function routeAfterReflection(state) {
   if ((state.iterations || 0) >= 2) return END;
-  return state.reflection === 'retry' ? 'generate' : END;
+  if (state.reflection !== 'retry') return END;
+  return state.queryType === 'document_summary' ? 'summarize' : 'generate';
 }
 
 module.exports = { reflectNode, routeAfterReflection };
