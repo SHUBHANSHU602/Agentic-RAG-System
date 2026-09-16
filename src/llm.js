@@ -11,9 +11,11 @@ function getModel() {
     throw new Error('Missing GROQ_API_KEY in environment.');
   }
 
+  const modelName = process.env.GROQ_MODEL || 'qwen/qwen3.6-27b';
+
   model = new ChatGroq({
     apiKey,
-    model: 'llama-3.3-70b-versatile',
+    model: modelName,
     temperature: 0.1
   });
 
