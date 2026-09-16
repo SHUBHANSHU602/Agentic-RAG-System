@@ -8,11 +8,12 @@ async function routerNode(state) {
       role: 'system',
       content: `Classify the user's query for a document/web RAG system.
 Return exactly one JSON object with this shape:
-{"type":"factual|analytical|web_current","reason":"short reason"}
+{"type":"factual|analytical|document_summary|web_current","reason":"short reason"}
 
 Definitions:
 - factual: asks for a concrete fact/explanation that may be answered from indexed documents.
-- analytical: asks to compare, reason across, synthesize, or explain multiple ideas.
+- analytical: asks to compare, reason across, synthesize, or explain multiple ideas from the documents.
+- document_summary: asks to summarize/summarise/overview the entire uploaded PDF/document, especially phrases like "summarize this PDF", "give me an overview of this document", or "what is this PDF about?".
 - web_current: explicitly asks for current/latest/live/recent information that indexed documents may be stale for.
 Do not reject a query merely because it may not exist in the indexed documents. Retrieval grading handles that later.`
     },
@@ -26,7 +27,7 @@ Do not reject a query merely because it may not exist in the indexed documents. 
     parsed = { type: 'factual', reason: 'Router output was not parseable; defaulting to document retrieval.' };
   }
 
-  const allowed = new Set(['factual', 'analytical', 'web_current']);
+  const allowed = new Set(['factual', 'analytical', 'document_summary', 'web_current']);
   const queryType = allowed.has(parsed.type) ? parsed.type : 'factual';
 
   return {
@@ -36,7 +37,9 @@ Do not reject a query merely because it may not exist in the indexed documents. 
 }
 
 function routeAfterRouter(state) {
-  return state.queryType === 'web_current' ? 'webSearch' : 'retrieve';
+  if (state.queryType === 'web_current') return 'webSearch';
+  if (state.queryType === 'document_summary') return 'summarize';
+  return 'retrieve';
 }
 
 module.exports = { routerNode, routeAfterRouter };
