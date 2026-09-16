@@ -4,7 +4,7 @@ const { runAgenticRag } = require('../graph/graph');
 
 router.post('/', async (req, res) => {
   try {
-    const { question } = req.body;
+    const { question, workspaceId = null } = req.body;
 
     if (!question || typeof question !== 'string') {
       return res.status(400).json({ error: 'question must be a non-empty string' });
@@ -18,7 +18,11 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'question too long — max 1000 characters' });
     }
 
-    const state = await runAgenticRag(trimmed);
+    if (workspaceId !== null && typeof workspaceId !== 'string') {
+      return res.status(400).json({ error: 'workspaceId must be a string when provided' });
+    }
+
+    const state = await runAgenticRag(trimmed, { workspaceId: workspaceId || null });
 
     const documentSources = (state.documents || []).map(result => ({
       type: 'document',
