@@ -27,16 +27,24 @@ async function storeBatch(points) {
   await client.upsert(COLLECTION_NAME, { points });
 }
 
+function payloadFilter({ workspaceId = null, documentId = null, source = null } = {}) {
+  const must = [];
+
+  if (workspaceId) {
+    must.push({ key: 'workspaceId', match: { value: workspaceId } });
+  }
+  if (documentId) {
+    must.push({ key: 'documentId', match: { value: documentId } });
+  } else if (source) {
+    // Backward-compatible fallback for documents indexed before documentId existed.
+    must.push({ key: 'source', match: { value: source } });
+  }
+
+  return must.length ? { must } : undefined;
+}
+
 function workspaceFilter(workspaceId) {
-  if (!workspaceId) return undefined;
-  return {
-    must: [
-      {
-        key: 'workspaceId',
-        match: { value: workspaceId }
-      }
-    ]
-  };
+  return payloadFilter({ workspaceId });
 }
 
 async function searchDense(queryVector, topK = 8, workspaceId = null) {
@@ -61,6 +69,50 @@ async function searchVectors(queryVector, topK = 8, workspaceId = null) {
   return searchDense(queryVector, topK, workspaceId);
 }
 
+// Whole-document operations such as summarization should not use semantic top-K
+// retrieval: that would only summarize the most query-similar fragments. Instead
+// we scan every point belonging to the selected document, then deduplicate the
+// repeated parent context stored on child chunks.
+async function getDocumentParents({ workspaceId, documentId = null, source = null }) {
+  if (!workspaceId) throw new Error('workspaceId is required for document scan');
+  if (!documentId && !source) throw new Error('documentId or source is required for document scan');
+
+  const filter = payloadFilter({ workspaceId, documentId, source });
+  const points = [];
+  let offset = undefined;
+
+  do {
+    const page = await client.scroll(COLLECTION_NAME, {
+      filter,
+      limit: 256,
+      offset,
+      with_payload: true,
+      with_vector: false
+    });
+
+    points.push(...(page.points || []));
+    offset = page.next_page_offset;
+  } while (offset !== null && offset !== undefined);
+
+  const parents = new Map();
+  for (const point of points) {
+    const payload = point.payload || {};
+    const parentIndex = payload.parentIndex ?? payload.chunkIndex ?? 0;
+    const key = `${payload.source || source || 'document'}::${parentIndex}`;
+    const text = payload.parentText || payload.text || '';
+
+    if (text && !parents.has(key)) {
+      parents.set(key, {
+        parentIndex,
+        text,
+        source: payload.source || source || 'document'
+      });
+    }
+  }
+
+  return Array.from(parents.values()).sort((a, b) => a.parentIndex - b.parentIndex);
+}
+
 async function deleteCollection() {
   try {
     await client.deleteCollection(COLLECTION_NAME);
@@ -76,5 +128,6 @@ module.exports = {
   searchVectors,
   searchDense,
   searchSparse,
+  getDocumentParents,
   deleteCollection
 };
