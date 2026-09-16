@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agentic RAG Workspace</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div>
+        <div class="eyebrow">AGENTIC RAG · CRAG · SELF-RAG</div>
+        <h1>Ask your documents.<br><span>Let the agent decide how.</span></h1>
+        <p>Upload a PDF, ask a question, and watch the system retrieve, grade, correct with web search when needed, generate, and reflect before answering.</p>
+      </div>
+      <div class="status-card">
+        <span class="status-dot"></span>
+        <div><strong>Agent workspace</strong><small id="workspaceLabel">Initializing…</small></div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <aside class="panel upload-panel">
+        <div class="panel-title"><span>01</span><div><h2>Knowledge base</h2><p>Add PDFs to this browser workspace.</p></div></div>
+        <label class="dropzone" id="dropzone" for="fileInput">
+          <input id="fileInput" type="file" accept="application/pdf,.pdf" hidden />
+          <div class="upload-icon">↑</div>
+          <strong>Drop a PDF here</strong>
+          <span>or click to browse · max 20 MB</span>
+        </label>
+        <button id="uploadBtn" class="primary" disabled>Upload & index</button>
+        <div id="uploadStatus" class="notice hidden"></div>
+        <div class="documents">
+          <div class="section-label">Indexed this session</div>
+          <div id="documentList" class="document-list"><div class="empty">No documents uploaded yet.</div></div>
+        </div>
+      </aside>
+
+      <section class="panel chat-panel">
+        <div class="panel-title"><span>02</span><div><h2>Agent conversation</h2><p>Document retrieval, CRAG correction and reflection are automatic.</p></div></div>
+        <div id="messages" class="messages">
+          <div class="message assistant intro-message">
+            <div class="avatar">A</div>
+            <div class="bubble">Upload a document and ask me anything about it. You can also ask a current question; the router can choose live web search when appropriate.</div>
+          </div>
+        </div>
+        <form id="askForm" class="composer">
+          <textarea id="questionInput" rows="2" placeholder="Ask a question about your documents…" maxlength="1000"></textarea>
+          <button id="askBtn" class="send" type="submit" aria-label="Send">→</button>
+        </form>
+      </section>
+    </section>
+
+    <section id="tracePanel" class="panel trace-panel hidden">
+      <div class="panel-title"><span>03</span><div><h2>Agent trace</h2><p>Last query routing and quality-control decisions.</p></div></div>
+      <div id="traceGrid" class="trace-grid"></div>
+      <div id="sources" class="sources"></div>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>
