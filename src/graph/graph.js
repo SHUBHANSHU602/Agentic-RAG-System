@@ -5,6 +5,7 @@ const { retrieveNode } = require('./nodes/retrieve');
 const { gradeNode, routeAfterGrade } = require('./nodes/grade');
 const { webSearchNode } = require('./nodes/webSearch');
 const { generateNode } = require('./nodes/generate');
+const { summarizeNode } = require('./nodes/summarize');
 const { reflectNode, routeAfterReflection } = require('./nodes/reflect');
 
 const workflow = new StateGraph(GraphState)
@@ -13,14 +14,16 @@ const workflow = new StateGraph(GraphState)
   .addNode('grade', gradeNode)
   .addNode('webSearch', webSearchNode)
   .addNode('generate', generateNode)
+  .addNode('summarize', summarizeNode)
   .addNode('reflect', reflectNode)
   .addEdge(START, 'router')
-  .addConditionalEdges('router', routeAfterRouter, ['retrieve', 'webSearch'])
+  .addConditionalEdges('router', routeAfterRouter, ['retrieve', 'summarize', 'webSearch'])
   .addEdge('retrieve', 'grade')
   .addConditionalEdges('grade', routeAfterGrade, ['generate', 'webSearch'])
   .addEdge('webSearch', 'generate')
   .addEdge('generate', 'reflect')
-  .addConditionalEdges('reflect', routeAfterReflection, ['generate', END]);
+  .addEdge('summarize', 'reflect')
+  .addConditionalEdges('reflect', routeAfterReflection, ['generate', 'summarize', END]);
 
 const agenticRagGraph = workflow.compile();
 
@@ -28,6 +31,8 @@ async function runAgenticRag(question, options = {}) {
   return agenticRagGraph.invoke({
     question,
     workspaceId: options.workspaceId || null,
+    documentId: options.documentId || null,
+    documentSource: options.documentSource || null,
     queryType: 'factual',
     routeReason: '',
     documents: [],
