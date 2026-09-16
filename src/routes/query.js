@@ -4,7 +4,12 @@ const { runAgenticRag } = require('../graph/graph');
 
 router.post('/', async (req, res) => {
   try {
-    const { question, workspaceId = null } = req.body;
+    const {
+      question,
+      workspaceId = null,
+      documentId = null,
+      documentSource = null
+    } = req.body;
 
     if (!question || typeof question !== 'string') {
       return res.status(400).json({ error: 'question must be a non-empty string' });
@@ -18,11 +23,17 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'question too long — max 1000 characters' });
     }
 
-    if (workspaceId !== null && typeof workspaceId !== 'string') {
-      return res.status(400).json({ error: 'workspaceId must be a string when provided' });
+    for (const [name, value] of Object.entries({ workspaceId, documentId, documentSource })) {
+      if (value !== null && typeof value !== 'string') {
+        return res.status(400).json({ error: `${name} must be a string when provided` });
+      }
     }
 
-    const state = await runAgenticRag(trimmed, { workspaceId: workspaceId || null });
+    const state = await runAgenticRag(trimmed, {
+      workspaceId: workspaceId || null,
+      documentId: documentId || null,
+      documentSource: documentSource || null
+    });
 
     const documentSources = (state.documents || []).map(result => ({
       type: 'document',
@@ -33,6 +44,14 @@ router.post('/', async (req, res) => {
       source: result?.payload?.source ?? null
     }));
 
+    const summarySources = state.queryType === 'document_summary'
+      ? (state.contextSources || []).slice(0, 8).map(source => ({
+          type: 'document',
+          source: source.label || documentSource || 'Selected document',
+          parentText: (source.text || '').slice(0, 250)
+        }))
+      : [];
+
     const webSources = (state.webResults || []).map(result => ({
       type: 'web',
       title: result.title,
@@ -41,11 +60,13 @@ router.post('/', async (req, res) => {
       preview: result.content?.slice(0, 250) || null
     }));
 
-    const usedSources = state.retrievalDecision === 'not_relevant'
-      ? webSources
-      : state.queryType === 'web_current'
+    const usedSources = state.queryType === 'document_summary'
+      ? summarySources
+      : state.retrievalDecision === 'not_relevant'
         ? webSources
-        : [...documentSources, ...webSources];
+        : state.queryType === 'web_current'
+          ? webSources
+          : [...documentSources, ...webSources];
 
     return res.status(200).json({
       answer: state.answer,
@@ -60,7 +81,7 @@ router.post('/', async (req, res) => {
         reflection: state.reflection,
         reflectionFeedback: state.reflectionFeedback
       },
-      retrieved: documentSources.length,
+      retrieved: state.queryType === 'document_summary' ? summarySources.length : documentSources.length,
       sources: usedSources
     });
   } catch (err) {
