@@ -4,9 +4,8 @@ const { searchDense } = require('./vectorStore');
 
 // Generates N query variations using Groq, embeds each with HyDE,
 // retrieves dense results for each, then merges all result sets.
-// Deduplicates by chunk id keeping highest score per chunk.
-// Result: broader coverage of the document than any single query achieves.
-async function multiQueryRetrieve(question, n = 3, topK = 5) {
+// Optional workspaceId keeps UI sessions isolated in the shared Qdrant collection.
+async function multiQueryRetrieve(question, n = 3, topK = 5, workspaceId = null) {
   const variations = await chat([
     {
       role: 'system',
@@ -25,10 +24,10 @@ async function multiQueryRetrieve(question, n = 3, topK = 5) {
 
   for (const query of queries) {
     const vec = await hydeEmbed(query);
-    const results = await searchDense(vec, topK);
-    for (const r of results) {
-      if (!allResults.has(r.id) || r.score > allResults.get(r.id).score) {
-        allResults.set(r.id, r);
+    const results = await searchDense(vec, topK, workspaceId);
+    for (const result of results) {
+      if (!allResults.has(result.id) || result.score > allResults.get(result.id).score) {
+        allResults.set(result.id, result);
       }
     }
   }
