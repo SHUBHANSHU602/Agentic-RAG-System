@@ -8,7 +8,11 @@ const { storeBatch } = require('../vectorStore');
 const { computeSparseVector } = require('../bm25');
 
 async function ingestPdf(filePath, options = {}) {
-  const { sourceLabel = null, workspaceId = null } = options;
+  const {
+    sourceLabel = null,
+    workspaceId = null,
+    documentId = randomUUID()
+  } = options;
   const resolvedPath = path.resolve(filePath);
 
   if (!fs.existsSync(resolvedPath)) {
@@ -47,6 +51,7 @@ async function ingestPdf(filePath, options = {}) {
       parentText: chunk.metadata.parentText,
       parentIndex: chunk.metadata.parentIndex,
       source,
+      documentId,
       chunkIndex: index,
       workspaceId: workspaceId || null
     }
@@ -59,6 +64,7 @@ async function ingestPdf(filePath, options = {}) {
     chunks: chunks.length,
     pointsStored: points.length,
     source,
+    documentId,
     workspaceId: workspaceId || null
   };
 }
