@@ -5,6 +5,8 @@ const { Annotation } = require('@langchain/langgraph');
 const GraphState = Annotation.Root({
   question: Annotation(),
   workspaceId: Annotation(),
+  documentId: Annotation(),
+  documentSource: Annotation(),
   queryType: Annotation(),
   routeReason: Annotation(),
   documents: Annotation(),
