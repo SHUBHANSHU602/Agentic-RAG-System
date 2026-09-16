@@ -11,7 +11,7 @@ function getModel() {
     throw new Error('Missing GROQ_API_KEY in environment.');
   }
 
-  const modelName = process.env.GROQ_MODEL || 'qwen/qwen3.6-27b';
+  const modelName = process.env.GROQ_MODEL || 'openai/gpt-oss-20b';
 
   model = new ChatGroq({
     apiKey,
