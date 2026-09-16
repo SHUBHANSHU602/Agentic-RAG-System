@@ -4,6 +4,7 @@ const { Annotation } = require('@langchain/langgraph');
 // Nodes return partial updates; LangGraph merges those updates into this state.
 const GraphState = Annotation.Root({
   question: Annotation(),
+  workspaceId: Annotation(),
   queryType: Annotation(),
   routeReason: Annotation(),
   documents: Annotation(),
