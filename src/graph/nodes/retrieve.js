@@ -5,7 +5,8 @@ async function retrieveNode(state) {
     useMultiQuery: true,
     useRerank: true,
     topK: state.queryType === 'analytical' ? 12 : 10,
-    topN: state.queryType === 'analytical' ? 6 : 4
+    topN: state.queryType === 'analytical' ? 6 : 4,
+    workspaceId: state.workspaceId || null
   });
 
   return {
