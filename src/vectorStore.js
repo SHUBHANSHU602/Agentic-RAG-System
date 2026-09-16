@@ -27,24 +27,38 @@ async function storeBatch(points) {
   await client.upsert(COLLECTION_NAME, { points });
 }
 
-async function searchDense(queryVector, topK = 8) {
+function workspaceFilter(workspaceId) {
+  if (!workspaceId) return undefined;
+  return {
+    must: [
+      {
+        key: 'workspaceId',
+        match: { value: workspaceId }
+      }
+    ]
+  };
+}
+
+async function searchDense(queryVector, topK = 8, workspaceId = null) {
   return client.search(COLLECTION_NAME, {
     vector: { name: 'dense', vector: queryVector },
     limit: topK,
-    with_payload: true
+    with_payload: true,
+    filter: workspaceFilter(workspaceId)
   });
 }
 
-async function searchSparse(sparseVector, topK = 8) {
+async function searchSparse(sparseVector, topK = 8, workspaceId = null) {
   return client.search(COLLECTION_NAME, {
     vector: { name: 'sparse', vector: sparseVector },
     limit: topK,
-    with_payload: true
+    with_payload: true,
+    filter: workspaceFilter(workspaceId)
   });
 }
 
-async function searchVectors(queryVector, topK = 8) {
-  return searchDense(queryVector, topK);
+async function searchVectors(queryVector, topK = 8, workspaceId = null) {
+  return searchDense(queryVector, topK, workspaceId);
 }
 
 async function deleteCollection() {
@@ -56,4 +70,11 @@ async function deleteCollection() {
   }
 }
 
-module.exports = { createCollection, storeBatch, searchVectors, searchDense, searchSparse, deleteCollection };
+module.exports = {
+  createCollection,
+  storeBatch,
+  searchVectors,
+  searchDense,
+  searchSparse,
+  deleteCollection
+};
