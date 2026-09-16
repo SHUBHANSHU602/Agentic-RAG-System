@@ -14,12 +14,24 @@ const workspaceLabel = document.getElementById('workspaceLabel');
 
 const workspaceKey = 'agentic-rag-workspace-id';
 const docsKey = 'agentic-rag-documents';
+const activeDocKey = 'agentic-rag-active-document';
 const workspaceId = localStorage.getItem(workspaceKey) || crypto.randomUUID();
 localStorage.setItem(workspaceKey, workspaceId);
 workspaceLabel.textContent = `Workspace ${workspaceId.slice(0, 8)}`;
 
 let selectedFile = null;
 let uploadedDocs = JSON.parse(localStorage.getItem(docsKey) || '[]');
+let activeDocumentName = localStorage.getItem(activeDocKey) || uploadedDocs[0]?.name || null;
+
+function activeDocument() {
+  return uploadedDocs.find(doc => doc.name === activeDocumentName) || uploadedDocs[0] || null;
+}
+
+function setActiveDocument(name) {
+  activeDocumentName = name;
+  localStorage.setItem(activeDocKey, name);
+  renderDocs();
+}
 
 function renderDocs() {
   if (!uploadedDocs.length) {
@@ -27,12 +39,21 @@ function renderDocs() {
     return;
   }
 
+  if (!activeDocument()) activeDocumentName = uploadedDocs[0].name;
+
   documentList.innerHTML = uploadedDocs.map(doc => `
-    <div class="doc">
-      <strong title="${escapeHtml(doc.name)}">${escapeHtml(doc.name)}</strong>
+    <button class="doc ${doc.name === activeDocumentName ? 'active' : ''}" data-document-name="${escapeHtml(doc.name)}" type="button">
+      <span>
+        <strong title="${escapeHtml(doc.name)}">${escapeHtml(doc.name)}</strong>
+        ${doc.name === activeDocumentName ? '<em>Active document</em>' : ''}
+      </span>
       <small>${doc.chunks} chunks</small>
-    </div>
+    </button>
   `).join('');
+
+  documentList.querySelectorAll('[data-document-name]').forEach(button => {
+    button.addEventListener('click', () => setActiveDocument(button.dataset.documentName));
+  });
 }
 
 function escapeHtml(value = '') {
@@ -99,10 +120,21 @@ uploadBtn.addEventListener('click', async () => {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Upload failed');
 
-    uploadedDocs.push({ name: data.filename, chunks: data.chunks });
+    const existingIndex = uploadedDocs.findIndex(doc => doc.name === data.filename);
+    const document = {
+      name: data.filename,
+      chunks: data.chunks,
+      documentId: data.documentId || null
+    };
+
+    if (existingIndex >= 0) uploadedDocs[existingIndex] = document;
+    else uploadedDocs.push(document);
+
+    activeDocumentName = data.filename;
+    localStorage.setItem(activeDocKey, activeDocumentName);
     localStorage.setItem(docsKey, JSON.stringify(uploadedDocs));
     renderDocs();
-    setUploadStatus(`${data.filename} indexed: ${data.pointsStored} vectors stored.`);
+    setUploadStatus(`${data.filename} indexed: ${data.pointsStored} vectors stored. It is now the active document.`);
     selectedFile = null;
     fileInput.value = '';
   } catch (error) {
@@ -159,12 +191,18 @@ askForm.addEventListener('submit', async event => {
   questionInput.value = '';
   askBtn.disabled = true;
   const pending = addMessage('assistant', '', true);
+  const activeDoc = activeDocument();
 
   try {
     const response = await fetch('/query', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question, workspaceId })
+      body: JSON.stringify({
+        question,
+        workspaceId,
+        documentId: activeDoc?.documentId || null,
+        documentSource: activeDoc?.name || null
+      })
     });
 
     const data = await response.json();
