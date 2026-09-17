@@ -1,26 +1,52 @@
 require('dotenv').config();
 const { QdrantClient } = require('@qdrant/js-client-rest');
 
-const client = new QdrantClient({ url: 'http://localhost:6333' });
-const COLLECTION_NAME = 'docs';
+const qdrantUrl = process.env.QDRANT_URL || 'http://localhost:6333';
+const qdrantApiKey = process.env.QDRANT_API_KEY || undefined;
+
+const client = new QdrantClient({
+  url: qdrantUrl,
+  ...(qdrantApiKey ? { apiKey: qdrantApiKey } : {})
+});
+
+const COLLECTION_NAME = process.env.QDRANT_COLLECTION || 'docs';
 const VECTOR_SIZE = 384;
+
+async function ensurePayloadIndexes() {
+  const fields = ['workspaceId', 'documentId', 'source'];
+  for (const field of fields) {
+    try {
+      await client.createPayloadIndex(COLLECTION_NAME, {
+        field_name: field,
+        field_schema: 'keyword'
+      });
+    } catch (error) {
+      const message = String(error?.message || '');
+      // Qdrant returns an error when an equivalent index already exists.
+      if (!message.toLowerCase().includes('already')) throw error;
+    }
+  }
+}
 
 async function createCollection() {
   const collections = await client.getCollections();
   const exists = collections.collections.some(c => c.name === COLLECTION_NAME);
-  if (exists) {
-    console.log('Collection already exists — skipping creation');
-    return;
+
+  if (!exists) {
+    await client.createCollection(COLLECTION_NAME, {
+      vectors: {
+        dense: { size: VECTOR_SIZE, distance: 'Cosine' }
+      },
+      sparse_vectors: {
+        sparse: { index: { on_disk: false } }
+      }
+    });
+    console.log(`Qdrant collection created: ${COLLECTION_NAME}`);
+  } else {
+    console.log(`Qdrant collection already exists: ${COLLECTION_NAME}`);
   }
-  await client.createCollection(COLLECTION_NAME, {
-    vectors: {
-      dense: { size: VECTOR_SIZE, distance: 'Cosine' }
-    },
-    sparse_vectors: {
-      sparse: { index: { on_disk: false } }
-    }
-  });
-  console.log('Collection created with dense + sparse vectors:', COLLECTION_NAME);
+
+  await ensurePayloadIndexes();
 }
 
 async function storeBatch(points) {
@@ -36,7 +62,6 @@ function payloadFilter({ workspaceId = null, documentId = null, source = null } 
   if (documentId) {
     must.push({ key: 'documentId', match: { value: documentId } });
   } else if (source) {
-    // Backward-compatible fallback for documents indexed before documentId existed.
     must.push({ key: 'source', match: { value: source } });
   }
 
@@ -69,10 +94,6 @@ async function searchVectors(queryVector, topK = 8, workspaceId = null) {
   return searchDense(queryVector, topK, workspaceId);
 }
 
-// Whole-document operations such as summarization should not use semantic top-K
-// retrieval: that would only summarize the most query-similar fragments. Instead
-// we scan every point belonging to the selected document, then deduplicate the
-// repeated parent context stored on child chunks.
 async function getDocumentParents({ workspaceId, documentId = null, source = null }) {
   if (!workspaceId) throw new Error('workspaceId is required for document scan');
   if (!documentId && !source) throw new Error('documentId or source is required for document scan');
